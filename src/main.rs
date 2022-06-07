@@ -13,12 +13,19 @@ mod twitter {
         )
     }
 
+    fn url_id_from_username(username: &str) -> String {
+        format!(
+            "https://api.twitter.com/2/users/by/username?username={username}",
+            username = username
+        )
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
 
         #[test]
-        fn test_create_url() {
+        fn test_url_tweets() {
             let user_id = 123;
             let start_time = Utc.ymd(2022, 6, 27).and_hms(1, 30, 0);
 
@@ -26,6 +33,17 @@ mod twitter {
             assert_eq!(
                 url,
                 "https://api.twitter.com/2/users/123/tweets?start_time=2022-06-27T01:30:00.000Z"
+            );
+        }
+
+        #[test]
+        fn test_url_id_from_username() {
+            let user_id = "exampleUser";
+
+            let url = url_id_from_username(user_id);
+            assert_eq!(
+                url,
+                "https://api.twitter.com/2/users/by/username?username=exampleUser"
             );
         }
     }
