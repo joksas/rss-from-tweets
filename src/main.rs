@@ -3,7 +3,9 @@ fn main() {
 }
 
 mod twitter {
+    use super::secrets;
     use chrono::prelude::*;
+    use reqwest::Client;
 
     fn url_tweets(user_id: u32, start_time: DateTime<Utc>) -> String {
         format!(
@@ -15,9 +17,53 @@ mod twitter {
 
     fn url_id_from_username(username: &str) -> String {
         format!(
-            "https://api.twitter.com/2/users/by/username?username={username}",
+            "https://api.twitter.com/2/users/by/username/{username}",
             username = username
         )
+    }
+
+    async fn id_from_username(username: &str) -> Result<u64, String> {
+        let client = Client::new();
+
+        let url = url_id_from_username(username);
+        let secrets = secrets::extract();
+        let secrets = match secrets {
+            Ok(secrets) => secrets,
+            Err(err) => return Err(err),
+        };
+        println!("URL: {}", url);
+
+        let request = client
+            .get(url)
+            .bearer_auth(secrets.twitter.bearer_token)
+            .build();
+        let request = match request {
+            Ok(request) => request,
+            Err(e) => return Err(e.to_string()),
+        };
+
+        let response = client.execute(request).await;
+        let response = match response {
+            Ok(response) => response,
+            Err(e) => return Err(e.to_string()),
+        };
+
+        let response = match response.json::<serde_json::Value>().await {
+            Ok(response) => response,
+            Err(e) => return Err(e.to_string()),
+        };
+
+        let string_user_id = match response["data"]["id"].as_str() {
+            Some(user_id) => user_id,
+            None => return Err("Could not parse user_id".to_string()),
+        };
+
+        let user_id = match string_user_id.parse::<u64>() {
+            Ok(user_id) => user_id,
+            Err(e) => return Err(e.to_string()),
+        };
+
+        Ok(user_id)
     }
 
     #[cfg(test)]
@@ -38,13 +84,21 @@ mod twitter {
 
         #[test]
         fn test_url_id_from_username() {
-            let user_id = "exampleUser";
+            let user_id = "jack";
 
             let url = url_id_from_username(user_id);
-            assert_eq!(
-                url,
-                "https://api.twitter.com/2/users/by/username?username=exampleUser"
-            );
+            assert_eq!(url, "https://api.twitter.com/2/users/by/username/jack");
+        }
+
+        #[tokio::test]
+        async fn test_id_from_username() {
+            let username = "jack";
+
+            let user_id = id_from_username(username);
+            match user_id.await {
+                Ok(user_id) => assert_eq!(user_id, 12),
+                Err(err) => panic!("{}", err),
+            };
         }
     }
 }
@@ -54,19 +108,19 @@ mod secrets {
     use std::process::Command;
 
     #[derive(Deserialize)]
-    struct TwitterSecrets {
+    pub struct TwitterSecrets {
         api_key: String,
         api_key_secret: String,
-        bearer_token: String,
+        pub bearer_token: String,
     }
 
     #[derive(Deserialize)]
-    struct Secrets {
-        twitter: TwitterSecrets,
+    pub struct Secrets {
+        pub twitter: TwitterSecrets,
         test_key: String,
     }
 
-    fn extract() -> Result<Secrets, String> {
+    pub fn extract() -> Result<Secrets, String> {
         let output = Command::new("sops")
             .arg("-d")
             .arg("--output-type")
