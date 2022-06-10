@@ -1,5 +1,47 @@
-fn main() {
-    println!("Hello, world!");
+#[tokio::main]
+async fn main() {
+    server::run(3030).await;
+}
+
+mod server {
+    use warp::Filter;
+    pub async fn run(port: u16) {
+        let routes = warp::path::end().and_then(handlers::root);
+        warp::serve(routes).run(([127, 0, 0, 1], port)).await;
+    }
+
+    fn routes() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        warp::path::end().and_then(handlers::root)
+    }
+
+    mod handlers {
+        use std::convert::Infallible;
+
+        pub async fn root() -> Result<String, Infallible> {
+            Ok("Hello, world!".to_string())
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use warp::http::StatusCode;
+        use warp::test::request;
+
+        use super::*;
+
+        #[tokio::test]
+        async fn test_root() {
+            assert_status_code("/", StatusCode::OK).await;
+            assert_status_code("/non-existent", StatusCode::NOT_FOUND).await;
+        }
+
+        async fn assert_status_code(path: &str, code: StatusCode) {
+            let req = request().method("GET").path(path);
+            let resp = req.reply(&routes()).await;
+
+            assert_eq!(resp.status(), code);
+        }
+    }
 }
 
 mod twitter {
