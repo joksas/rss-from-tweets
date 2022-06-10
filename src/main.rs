@@ -15,10 +15,22 @@ mod server {
     }
 
     mod handlers {
-        use std::convert::Infallible;
+        use askama::Template;
+        use warp::Rejection;
 
-        pub async fn root() -> Result<String, Infallible> {
-            Ok("Hello, world!".to_string())
+        pub async fn root() -> Result<impl warp::reply::Reply, Rejection> {
+            #[derive(Template)]
+            #[template(path = "root.html")]
+            struct RootTemplate {}
+            let tmpl = RootTemplate {};
+            let output = match tmpl.render() {
+                Ok(output) => output,
+                Err(_e) => {
+                    // TODO: Need custom rejection.
+                    return Err(warp::reject::reject());
+                }
+            };
+            Ok(warp::reply::html(output))
         }
     }
 
