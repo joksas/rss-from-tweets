@@ -24,6 +24,18 @@ jobs:
     - name: Install SOPS
       uses: mdgreenwald/mozilla-sops-action@v1.2.0
       
+    - name: Install Node
+      uses: actions/setup-node@v3
+      with:
+        node-version: 16
+        cache: 'npm'
+        
+    - name: Install NPM packages
+      run: npm ci
+    
+    - name: Generate Tailwind CSS file
+      run: npm run tailwind:build
+      
     - name: Rust cache
       uses: Swatinem/rust-cache@v1.3.0
       
