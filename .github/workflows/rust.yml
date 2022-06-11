@@ -24,5 +24,8 @@ jobs:
     - name: Install SOPS
       uses: mdgreenwald/mozilla-sops-action@v1.2.0
       
+    - name: Rust cache
+      uses: Swatinem/rust-cache@v1.3.0
+      
     - name: Run tests
       run: cargo test --verbose
