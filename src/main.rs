@@ -148,11 +148,8 @@ mod twitter {
         async fn test_id_from_username() {
             let username = "jack";
 
-            let user_id = id_from_username(username);
-            match user_id.await {
-                Ok(user_id) => assert_eq!(user_id, 12),
-                Err(err) => panic!("{}", err),
-            };
+            let user_id = id_from_username(username).await.unwrap();
+            assert_eq!(user_id, 12);
         }
     }
 }
@@ -201,11 +198,8 @@ mod secrets {
 
         #[test]
         fn test_extract() {
-            let result = extract();
-            match result {
-                Ok(secrets) => assert_eq!(secrets.test_key, "test_value"),
-                Err(err) => panic!("{}", err),
-            }
+            let secrets = extract().unwrap();
+            assert_eq!(secrets.test_key, "test_value");
         }
     }
 }
