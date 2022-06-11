@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "tailwind:build": "tailwindcss -i ./src/css/input.css -o ./assets/style.css --minify",
+    "server": "npm run tailwind:build && cargo run",
+    "build": "npm run tailwind:build && cargo build"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.2",
+    "tailwindcss": "^3.1.2"
+  }
+}
