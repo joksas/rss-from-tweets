@@ -7,7 +7,6 @@ mod server {
     use warp::Filter;
     pub async fn run(port: u16) {
         let root = warp::path::end().and_then(handlers::root);
-        // let css = warp::path("assets").and(warp::fs::dir("assets"));
         let css = warp::path("style.css")
             .map(|| include_str!("../assets/style.css"))
             .map(|reply| warp::reply::with_header(reply, "content-type", "text/css"));
