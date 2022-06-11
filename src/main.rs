@@ -149,6 +149,7 @@ mod twitter {
             let username = "jack";
 
             let user_id = id_from_username(username).await.unwrap();
+            // See <https://web.archive.org/web/20220611133626/https://twitter.com/jack/status/49923786786615296>.
             assert_eq!(user_id, 12);
         }
     }
