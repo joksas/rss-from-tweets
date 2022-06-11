@@ -4,13 +4,17 @@ async fn main() {
 }
 
 mod server {
+    use warp::http::StatusCode;
     use warp::Filter;
+
     pub async fn run(port: u16) {
         let root = warp::path::end().and_then(handlers::root);
         let css = warp::path("style.css")
             .map(|| include_str!("../assets/style.css"))
             .map(|reply| warp::reply::with_header(reply, "content-type", "text/css"));
-        let routes = root.or(css);
+
+        let routes = root.or(css).recover(handlers::rejection);
+
         warp::serve(routes).run(([127, 0, 0, 1], port)).await;
     }
 
@@ -27,6 +31,38 @@ mod server {
             #[template(path = "root.html")]
             struct RootTemplate {}
             let tmpl = RootTemplate {};
+            let output = match tmpl.render() {
+                Ok(output) => output,
+                Err(_e) => {
+                    // TODO: Need custom rejection.
+                    return Err(warp::reject::reject());
+                }
+            };
+            Ok(warp::reply::html(output))
+        }
+
+        pub async fn rejection(err: warp::Rejection) -> Result<impl warp::reply::Reply, Rejection> {
+            if err.is_not_found() {
+                error(404, "NOT FOUND".to_string()).await
+            } else {
+                error(500, "INTERNAL SERVER ERROR".to_string()).await
+            }
+        }
+
+        pub async fn error(
+            code: u16,
+            message: String,
+        ) -> Result<impl warp::reply::Reply, Rejection> {
+            #[derive(Template)]
+            #[template(path = "error.html")]
+            struct ErrorTemplate {
+                message: String,
+                code: u16,
+            }
+            let tmpl = ErrorTemplate {
+                code: code,
+                message: message,
+            };
             let output = match tmpl.render() {
                 Ok(output) => output,
                 Err(_e) => {
