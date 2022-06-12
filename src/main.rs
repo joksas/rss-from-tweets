@@ -51,7 +51,7 @@ mod handlers {
         }
     }
 
-    pub async fn css() -> HttpResponse {
+    async fn css() -> HttpResponse {
         HttpResponse::build(StatusCode::OK)
             .content_type("text/css")
             .body(include_str!("../assets/style.css"))
