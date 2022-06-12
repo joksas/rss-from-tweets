@@ -1,97 +1,79 @@
+use actix_web::{web, App, HttpServer};
+
 #[tokio::main]
-async fn main() {
-    server::run(3030).await;
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(|| App::new().configure(handlers::config))
+        .bind(("127.0.0.1", 3030))?
+        .run()
+        .await
 }
 
-mod server {
-    use warp::http::StatusCode;
-    use warp::Filter;
+mod handlers {
+    use actix_web::http::StatusCode;
+    use actix_web::{web, HttpResponse};
+    use askama::Template;
 
-    pub async fn run(port: u16) {
-        let root = warp::path::end().and_then(handlers::root);
-        let css = warp::path("style.css")
-            .map(|| include_str!("../assets/style.css"))
-            .map(|reply| warp::reply::with_header(reply, "content-type", "text/css"));
-
-        let routes = root.or(css).recover(handlers::rejection);
-
-        warp::serve(routes).run(([127, 0, 0, 1], port)).await;
+    pub fn config(cfg: &mut web::ServiceConfig) {
+        cfg.service(web::resource("/").route(web::get().to(root)));
+        cfg.service(web::resource("/style.css").route(web::get().to(css)));
+        cfg.default_service(web::route().to(not_found));
     }
 
-    fn routes() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        warp::path::end().and_then(handlers::root)
+    async fn root() -> HttpResponse {
+        #[derive(Template)]
+        #[template(path = "root.html")]
+        struct RootTemplate {}
+        let tmpl = RootTemplate {};
+        match tmpl.render() {
+            Ok(output) => return HttpResponse::Ok().content_type("text/html").body(output),
+            Err(_e) => HttpResponse::InternalServerError().body("Internal Server Error"),
+        }
     }
 
-    mod handlers {
-        use askama::Template;
-        use warp::Rejection;
-
-        pub async fn root() -> Result<impl warp::reply::Reply, Rejection> {
-            #[derive(Template)]
-            #[template(path = "root.html")]
-            struct RootTemplate {}
-            let tmpl = RootTemplate {};
-            let output = match tmpl.render() {
-                Ok(output) => output,
-                Err(_e) => {
-                    // TODO: Need custom rejection.
-                    return Err(warp::reject::reject());
-                }
-            };
-            Ok(warp::reply::html(output))
-        }
-
-        pub async fn rejection(err: warp::Rejection) -> Result<impl warp::reply::Reply, Rejection> {
-            if err.is_not_found() {
-                error(404, "NOT FOUND".to_string()).await
-            } else {
-                error(500, "INTERNAL SERVER ERROR".to_string()).await
-            }
-        }
-
-        pub async fn error(
-            code: u16,
+    async fn not_found() -> HttpResponse {
+        #[derive(Template)]
+        #[template(path = "error.html")]
+        struct ErrorTemplate {
             message: String,
-        ) -> Result<impl warp::reply::Reply, Rejection> {
-            #[derive(Template)]
-            #[template(path = "error.html")]
-            struct ErrorTemplate {
-                message: String,
-                code: u16,
-            }
-            let tmpl = ErrorTemplate {
-                code: code,
-                message: message,
-            };
-            let output = match tmpl.render() {
-                Ok(output) => output,
-                Err(_e) => {
-                    // TODO: Need custom rejection.
-                    return Err(warp::reject::reject());
-                }
-            };
-            Ok(warp::reply::html(output))
+            code: u16,
         }
+        let tmpl = ErrorTemplate {
+            code: 404,
+            message: "Not Found".to_string(),
+        };
+        match tmpl.render() {
+            Ok(output) => {
+                return HttpResponse::NotFound()
+                    .content_type("text/html")
+                    .body(output)
+            }
+            Err(_e) => HttpResponse::InternalServerError().body("Internal Server Error"),
+        }
+    }
+
+    pub async fn css() -> HttpResponse {
+        HttpResponse::build(StatusCode::OK)
+            .content_type("text/css")
+            .body(include_str!("../assets/style.css"))
     }
 
     #[cfg(test)]
     mod tests {
-        use warp::http::StatusCode;
-        use warp::test::request;
-
         use super::*;
+        use actix_web::http::StatusCode;
+        use actix_web::{test, App};
 
-        #[tokio::test]
-        async fn test_root() {
-            assert_status_code("/", StatusCode::OK).await;
-            assert_status_code("/non-existent", StatusCode::NOT_FOUND).await;
-        }
+        #[actix_web::test]
+        async fn test_status_codes() {
+            let app = test::init_service(App::new().configure(config)).await;
 
-        async fn assert_status_code(path: &str, code: StatusCode) {
-            let req = request().method("GET").path(path);
-            let resp = req.reply(&routes()).await;
+            let req = test::TestRequest::get().uri("/").to_request();
+            let resp = test::call_service(&app, req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
 
-            assert_eq!(resp.status(), code);
+            let req = test::TestRequest::get().uri("/non-existent").to_request();
+            let resp = test::call_service(&app, req).await;
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND);
         }
     }
 }
