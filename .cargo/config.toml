@@ -1,0 +1,2 @@
+[env]
+RUST_LOG = "rss_from_tweets=info"
