@@ -1,3 +1,4 @@
+mod tmpl;
 use actix_web::{App, HttpServer};
 
 #[tokio::main]
@@ -20,7 +21,6 @@ async fn main() -> std::io::Result<()> {
 mod handlers {
     use actix_web::http::StatusCode;
     use actix_web::{web, HttpResponse};
-    use askama::Template;
 
     pub fn config(cfg: &mut web::ServiceConfig) {
         cfg.service(web::resource("/").route(web::get().to(root)));
@@ -29,35 +29,19 @@ mod handlers {
     }
 
     async fn root() -> HttpResponse {
-        #[derive(Template)]
-        #[template(path = "root.html")]
-        struct RootTemplate {}
-        let tmpl = RootTemplate {};
-        match tmpl.render() {
-            Ok(output) => return HttpResponse::Ok().content_type("text/html").body(output),
-            Err(_e) => HttpResponse::InternalServerError().body("Internal Server Error"),
-        }
+        let output = super::tmpl::page(
+            "Hello, World!",
+            maud::html! {
+                p { "How are you?" }
+            },
+        )
+        .into_string();
+        HttpResponse::Ok().content_type("text/html").body(output)
     }
 
     async fn not_found() -> HttpResponse {
-        #[derive(Template)]
-        #[template(path = "error.html")]
-        struct ErrorTemplate {
-            message: String,
-            code: u16,
-        }
-        let tmpl = ErrorTemplate {
-            code: 404,
-            message: "Not Found".to_string(),
-        };
-        match tmpl.render() {
-            Ok(output) => {
-                return HttpResponse::NotFound()
-                    .content_type("text/html")
-                    .body(output)
-            }
-            Err(_e) => HttpResponse::InternalServerError().body("Internal Server Error"),
-        }
+        let output = super::tmpl::error_page(404, "Not Found").into_string();
+        HttpResponse::Ok().content_type("text/html").body(output)
     }
 
     async fn css() -> HttpResponse {
