@@ -41,7 +41,9 @@ mod handlers {
 
     async fn not_found() -> HttpResponse {
         let output = super::tmpl::error_page(404, "Not Found").into_string();
-        HttpResponse::Ok().content_type("text/html").body(output)
+        HttpResponse::NotFound()
+            .content_type("text/html")
+            .body(output)
     }
 
     async fn css() -> HttpResponse {
