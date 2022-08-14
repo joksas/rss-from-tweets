@@ -80,11 +80,7 @@ mod twitter {
     use twitter_v2::{authorization, query, TwitterApi};
 
     async fn user_by_username(username: &str) -> Result<twitter_v2::User, String> {
-        let secrets = secrets::extract();
-        let secrets = match secrets {
-            Ok(secrets) => secrets,
-            Err(err) => return Err(err),
-        };
+        let secrets = secrets::extract()?;
 
         let auth = authorization::BearerToken::new(secrets.twitter.bearer_token);
 
