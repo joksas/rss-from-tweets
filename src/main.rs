@@ -79,7 +79,7 @@ mod twitter {
     use reqwest::Client;
     use twitter_v2::{authorization, query, TwitterApi};
 
-    async fn id_from_username(username: &str) -> Result<u64, String> {
+    async fn user_by_username(username: &str) -> Result<twitter_v2::User, String> {
         let secrets = secrets::extract();
         let secrets = match secrets {
             Ok(secrets) => secrets,
@@ -100,7 +100,7 @@ mod twitter {
 
         let user = user.into_data().expect("this user should exist");
 
-        Ok(user.id.as_u64())
+        Ok(user)
     }
 
     #[cfg(test)]
@@ -108,12 +108,12 @@ mod twitter {
         use super::*;
 
         #[tokio::test]
-        async fn test_id_from_username() {
+        async fn test_user_by_username() {
             let username = "jack";
 
-            let user_id = id_from_username(username).await.unwrap();
+            let user = user_by_username(username).await.unwrap();
             // See <https://web.archive.org/web/20220611133626/https://twitter.com/jack/status/49923786786615296>.
-            assert_eq!(user_id, 12);
+            assert_eq!(user.id, 12);
         }
     }
 }
