@@ -90,7 +90,7 @@ mod twitter {
 
         let user = match TwitterApi::new(auth)
             .get_user_by_username(username)
-            .tweet_fields([query::TweetField::AuthorId, query::TweetField::CreatedAt])
+            .tweet_fields([query::TweetField::AuthorId])
             .send()
             .await
         {
