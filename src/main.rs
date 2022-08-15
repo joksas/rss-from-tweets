@@ -103,6 +103,7 @@ mod handlers {
 mod twitter {
     use super::secrets;
     use twitter_v2::{authorization, TwitterApi};
+    use twitter_v2::query::{TweetField};
 
     pub async fn user_by_username(username: &str) -> Result<twitter_v2::User, String> {
         let secrets = secrets::extract()?;
@@ -154,6 +155,7 @@ mod twitter {
 
         let tweets = match TwitterApi::new(auth)
             .get_user_tweets(user.id)
+            .tweet_fields([TweetField::Entities])
             .max_results(max_results)
             .send()
             .await

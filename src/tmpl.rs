@@ -43,12 +43,97 @@ pub fn user_tweets(tweets: Vec<twitter_v2::Tweet>) -> Markup {
         (header(title))
             body {
                 @for (idx, tweet) in tweets.iter().enumerate() {
-                    (plain_text_to_html(&tweet.text))
+                    @let paragraphs = tweet_to_parts(tweet);
+
+                    @for paragraph in paragraphs {
+                        p {
+                            @for (line_idx, line) in paragraph.iter().enumerate() {
+                                @for part in line {
+                                    @match part {
+                                        TweetPart::Text(text) => {
+                                            (text)
+                                        }
+                                        TweetPart::Link(url, text) => {
+                                            a href=(url) { (text) }
+                                        }
+                                    }
+                                }
+                                @if line_idx < paragraph.len() - 1 {
+                                    br;
+                                }
+                            }
+                        }
+                    }
+
                     @if idx < tweets.len() - 1 {
                         hr;
                     }
                 }
             }
+    }
+}
+
+pub enum TweetPart {
+    Text(String),
+    Link(String, String),
+}
+
+fn tweet_to_parts(tweet: &twitter_v2::Tweet) -> Vec<Vec<Vec<TweetPart>>> {
+    let mut paragraphs: Vec<Vec<Vec<TweetPart>>> = Vec::new();
+    let mut current_idx = 0;
+    let mut line_start_idx = 0;
+    let mut newline_adder = 0;
+
+    let paragraph_texts = tweet.text.split("\n\n");
+    for paragraph_text in paragraph_texts {
+        let line_texts = paragraph_text.split("\n");
+        let mut lines: Vec<Vec<TweetPart>> = Vec::new();
+        for line_text in line_texts {
+            let mut parts: Vec<TweetPart> = Vec::new();
+            if let Some(entities) = &tweet.entities {
+                if let Some(urls) = &entities.urls {
+                    for url in urls {
+                        if url.start >= line_start_idx
+                            && url.end <= line_start_idx + line_text.len()
+                        {
+                            parts.push(TweetPart::Text(
+                                tweet.text[current_idx..url.start + newline_adder].to_string(),
+                            ));
+                            parts.push(TweetPart::Link(
+                                url.expanded_url.clone(),
+                                url.display_url.clone(),
+                            ));
+                            current_idx = url.end + newline_adder;
+                        }
+                    }
+                }
+            }
+            parts.push(TweetPart::Text(
+                tweet.text[current_idx..line_start_idx + line_text.len()].to_string(),
+            ));
+            lines.push(parts);
+            current_idx = line_start_idx + line_text.len() + 1;
+            line_start_idx += line_text.len() + 1;
+        }
+        paragraphs.push(lines);
+        newline_adder += 2 * paragraph_text.matches('\n').count() + 2;
+    }
+
+    paragraphs
+}
+
+fn parts_to_html(parts: Vec<TweetPart>) -> Markup {
+    html! {
+        @for part in parts {
+            @match part {
+                TweetPart::Text(text) => {
+                    (text)
+                }
+                TweetPart::Link(url, display_url) => {
+                    a href=(url) { (display_url) }
+                }
+            }
+        }
     }
 }
 
