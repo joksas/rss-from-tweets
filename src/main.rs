@@ -75,8 +75,6 @@ mod handlers {
 
 mod twitter {
     use super::secrets;
-    use chrono::prelude::*;
-    use reqwest::Client;
     use twitter_v2::{authorization, query, TwitterApi};
 
     async fn user_by_username(username: &str) -> Result<twitter_v2::User, String> {
