@@ -1,4 +1,5 @@
 use maud::{html, Markup, DOCTYPE};
+use twitter_v2;
 
 /// A basic header with a dynamic `page_title`.
 fn header(page_title: &str) -> Markup {
@@ -31,6 +32,21 @@ pub fn error_page(code: u16, message: &str) -> Markup {
             body {
                 main class="max-w-3xl mx-auto prose" {
                     h1 class="text-red-700" { (title) }
+                }
+            }
+    }
+}
+
+pub fn user_tweets(tweets: Vec<twitter_v2::Tweet>) -> Markup {
+    let title = "User tweets";
+    html! {
+        (header(title))
+            body {
+                @for (idx, tweet) in tweets.iter().enumerate() {
+                    (plain_text_to_html(&tweet.text))
+                    @if idx < tweets.len() - 1 {
+                        hr;
+                    }
                 }
             }
     }

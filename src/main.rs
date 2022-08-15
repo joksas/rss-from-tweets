@@ -1,5 +1,5 @@
 mod tmpl;
-use actix_web::{App, HttpServer};
+use actix_web::{get, App, HttpServer};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -19,11 +19,13 @@ async fn main() -> std::io::Result<()> {
 }
 
 mod handlers {
+    use super::twitter;
     use actix_web::http::StatusCode;
-    use actix_web::{web, HttpResponse};
+    use actix_web::{get, web, HttpResponse};
 
     pub fn config(cfg: &mut web::ServiceConfig) {
         cfg.service(web::resource("/").route(web::get().to(root)));
+        cfg.service(user_tweets);
         cfg.service(web::resource("/style.css").route(web::get().to(css)));
         cfg.default_service(web::route().to(not_found));
     }
@@ -36,6 +38,31 @@ mod handlers {
             },
         )
         .into_string();
+        HttpResponse::Ok().content_type("text/html").body(output)
+    }
+
+    #[get("/users/{username}")]
+    async fn user_tweets(username: web::Path<String>) -> HttpResponse {
+        let user = twitter::user_by_username(&username).await;
+        let user = match user {
+            Ok(user) => user,
+            Err(e) => {
+                log::error!("Error retrieving user: {}", e);
+                return HttpResponse::InternalServerError().body("Error");
+            }
+        };
+
+        let tweets = twitter::user_tweets(&user, 5).await;
+        let tweets = match tweets {
+            Ok(tweets) => tweets,
+            Err(e) => {
+                log::error!("Error retrieving tweets: {}", e);
+                return HttpResponse::InternalServerError().body("Error");
+            }
+        };
+
+        let output = super::tmpl::user_tweets(tweets).into_string();
+
         HttpResponse::Ok().content_type("text/html").body(output)
     }
 
@@ -77,7 +104,7 @@ mod twitter {
     use super::secrets;
     use twitter_v2::{authorization, TwitterApi};
 
-    async fn user_by_username(username: &str) -> Result<twitter_v2::User, String> {
+    pub async fn user_by_username(username: &str) -> Result<twitter_v2::User, String> {
         let secrets = secrets::extract()?;
 
         let auth = authorization::BearerToken::new(secrets.twitter.bearer_token);
@@ -115,6 +142,31 @@ mod twitter {
         };
 
         Ok(tweet)
+    }
+
+    pub async fn user_tweets(
+        user: &twitter_v2::User,
+        max_results: usize,
+    ) -> Result<Vec<twitter_v2::Tweet>, String> {
+        let secrets = secrets::extract()?;
+
+        let auth = authorization::BearerToken::new(secrets.twitter.bearer_token);
+
+        let tweets = match TwitterApi::new(auth)
+            .get_user_tweets(user.id)
+            .max_results(max_results)
+            .send()
+            .await
+        {
+            Ok(tweets) => tweets,
+            Err(err) => return Err(err.to_string()),
+        };
+        let tweets = match tweets.into_data() {
+            Some(tweets) => tweets,
+            None => return Err(String::from("Tweets not found.")),
+        };
+
+        Ok(tweets)
     }
 
     #[cfg(test)]
