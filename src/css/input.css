@@ -8,10 +8,10 @@
   }
 
   hr {
-    @apply my-7;
+    @apply my-4;
   }
 
-  p {
-    @apply my-5;
+  h1 {
+    @apply text-xl mt-2 mb-7 text-center;
   }
 }
