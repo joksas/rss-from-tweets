@@ -8,6 +8,10 @@
   }
 
   hr {
-    @apply my-2;
+    @apply my-7;
+  }
+
+  p {
+    @apply my-5;
   }
 }

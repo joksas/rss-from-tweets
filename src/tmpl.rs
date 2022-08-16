@@ -1,5 +1,4 @@
 use maud::{html, Markup, DOCTYPE};
-use twitter_v2;
 
 /// A basic header with a dynamic `page_title`.
 fn header(page_title: &str) -> Markup {
@@ -41,33 +40,13 @@ pub fn user_tweets(tweets: Vec<twitter_v2::Tweet>) -> Markup {
     let title = "User tweets";
     html! {
         (header(title))
-            body {
-                @for (idx, tweet) in tweets.iter().enumerate() {
-                    @let paragraphs = tweet_to_parts(tweet);
+            body class="max-w-3xl mx-auto" {
+                @for (tweet_idx, tweet) in tweets.iter().enumerate() {
+                    (tweet_to_html(&tweet))
 
-                    @for paragraph in paragraphs {
-                        p {
-                            @for (line_idx, line) in paragraph.iter().enumerate() {
-                                @for part in line {
-                                    @match part {
-                                        TweetPart::Text(text) => {
-                                            (text)
-                                        }
-                                        TweetPart::Link(url, text) => {
-                                            a href=(url) { (text) }
-                                        }
-                                    }
-                                }
-                                @if line_idx < paragraph.len() - 1 {
-                                    br;
-                                }
-                            }
+                        @if tweet_idx < tweets.len() - 1 {
+                            hr;
                         }
-                    }
-
-                    @if idx < tweets.len() - 1 {
-                        hr;
-                    }
                 }
             }
     }
@@ -78,63 +57,91 @@ pub enum TweetPart {
     Link(String, String),
 }
 
-fn tweet_to_parts(tweet: &twitter_v2::Tweet) -> Vec<Vec<Vec<TweetPart>>> {
-    let mut paragraphs: Vec<Vec<Vec<TweetPart>>> = Vec::new();
-    let mut current_idx = 0;
-    let mut line_start_idx = 0;
-    let mut newline_adder = 0;
-
-    let paragraph_texts = tweet.text.split("\n\n");
-    for paragraph_text in paragraph_texts {
-        let line_texts = paragraph_text.split("\n");
-        let mut lines: Vec<Vec<TweetPart>> = Vec::new();
-        for line_text in line_texts {
-            let mut parts: Vec<TweetPart> = Vec::new();
-            if let Some(entities) = &tweet.entities {
-                if let Some(urls) = &entities.urls {
-                    for url in urls {
-                        if url.start >= line_start_idx
-                            && url.end <= line_start_idx + line_text.len()
-                        {
-                            parts.push(TweetPart::Text(
-                                tweet.text[current_idx..url.start + newline_adder].to_string(),
-                            ));
-                            parts.push(TweetPart::Link(
-                                url.expanded_url.clone(),
-                                url.display_url.clone(),
-                            ));
-                            current_idx = url.end + newline_adder;
-                        }
-                    }
-                }
-            }
-            parts.push(TweetPart::Text(
-                tweet.text[current_idx..line_start_idx + line_text.len()].to_string(),
-            ));
-            lines.push(parts);
-            current_idx = line_start_idx + line_text.len() + 1;
-            line_start_idx += line_text.len() + 1;
-        }
-        paragraphs.push(lines);
-        newline_adder += 2 * paragraph_text.matches('\n').count() + 2;
+fn utf8_idx(s: &String, idx: usize) -> usize {
+    match s.char_indices().map(|(i, _)| i).nth(idx) {
+        Some(idx) => idx,
+        None => idx,
     }
-
-    paragraphs
 }
 
-fn parts_to_html(parts: Vec<TweetPart>) -> Markup {
-    html! {
-        @for part in parts {
-            @match part {
-                TweetPart::Text(text) => {
-                    (text)
-                }
-                TweetPart::Link(url, display_url) => {
-                    a href=(url) { (display_url) }
-                }
+fn tweet_to_html(tweet: &twitter_v2::Tweet) -> Markup {
+    let par_separator = "\n\n";
+    let par_starts: Vec<usize> = tweet.text.match_indices("\n\n").map(|(i, _)| i).collect();
+
+    let mut par_limits = vec![0];
+    for par_start in par_starts {
+        par_limits.push(utf8_idx(&tweet.text, par_start));
+        par_limits.push(utf8_idx(&tweet.text, par_start + par_separator.len()));
+    }
+    par_limits.push(utf8_idx(&tweet.text, tweet.text.len()));
+
+    let par_limits: Vec<(usize, usize)> = par_limits
+        .chunks(2)
+        .map(|chunk| (chunk[0], chunk[1]))
+        .collect();
+
+    let mut urls = vec![];
+
+    if let Some(entities) = &tweet.entities {
+        if let Some(tweet_urls) = &entities.urls {
+            for url in tweet_urls {
+                urls.push(url);
             }
         }
     }
+
+    let mut tweet_html = html! {};
+
+    for (par_start, par_end) in par_limits {
+        let mut start_idx = par_start;
+        let mut par_html = html! {};
+
+        for url in urls.iter() {
+            let url_start = utf8_idx(&tweet.text, url.start);
+            let url_end = utf8_idx(&tweet.text, url.end);
+            if url_start > start_idx && url_start < par_end {
+                let text = &tweet.text[start_idx..url_start];
+                par_html = html! {
+                    (par_html)
+                    (newlines_to_br(text))
+                    a href=(url.expanded_url) {
+                        (url.display_url)
+                    }
+                };
+                start_idx = url_end;
+            }
+        }
+
+        if start_idx < par_end {
+            let text = &tweet.text[start_idx..par_end];
+            par_html = html! {
+                (par_html)
+                (newlines_to_br(text))
+            };
+        }
+
+        tweet_html = html! {
+            (tweet_html)
+            p { (par_html) }
+        };
+    }
+
+    tweet_html
+}
+
+fn newlines_to_br(par: &str) -> Markup {
+    let mut par_html = html! {};
+    for (idx, line) in par.split('\n').enumerate() {
+        par_html = html! {
+            (par_html)
+            (line)
+
+            @if idx < par.split('\n').count() - 1 {
+                br;
+            }
+        };
+    }
+    par_html
 }
 
 fn plain_text_to_html(text: &str) -> Markup {
