@@ -63,16 +63,48 @@ enum TweetTextPart {
     Newline,
 }
 
+struct Link {
+    url: String,
+    text: String,
+    start: usize,
+    end: usize,
+}
+
 type TweetText = Vec<TweetTextPart>;
 
 fn tweet_to_html(tweet: &twitter_v2::Tweet) -> Markup {
     let chars: Vec<char> = tweet.text.chars().collect();
 
-    let mut urls = Vec::new();
+    let mut urls: Vec<Link> = Vec::new();
     if let Some(entities) = &tweet.entities {
         if let Some(tweet_urls) = &entities.urls {
             for url in tweet_urls {
-                urls.push(url);
+                urls.push(Link {
+                    url: url.url.clone(),
+                    text: url.display_url.clone(),
+                    start: url.start,
+                    end: url.end,
+                });
+            }
+        }
+        if let Some(tweet_hashtags) = &entities.hashtags {
+            for hashtag in tweet_hashtags {
+                urls.push(Link {
+                    url: format!("https://twitter.com/hashtag/{}", hashtag.tag),
+                    text: format!("#{}", hashtag.tag),
+                    start: hashtag.start,
+                    end: hashtag.end,
+                });
+            }
+        }
+        if let Some(tweet_user_mentions) = &entities.mentions {
+            for user_mention in tweet_user_mentions {
+                urls.push(Link {
+                    url: format!("https://twitter.com/{}", user_mention.username),
+                    text: format!("@{}", user_mention.username),
+                    start: user_mention.start,
+                    end: user_mention.end,
+                });
             }
         }
     }
@@ -91,10 +123,7 @@ fn tweet_to_html(tweet: &twitter_v2::Tweet) -> Markup {
         }
         for url in urls.iter() {
             if url.start == idx {
-                tweet_text.push(TweetTextPart::Link(
-                    url.url.clone(),
-                    url.display_url.clone(),
-                ));
+                tweet_text.push(TweetTextPart::Link(url.url.clone(), url.text.clone()));
                 skip_to_idx = url.end;
             }
         }
