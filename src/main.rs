@@ -127,24 +127,6 @@ mod twitter {
         Ok(user)
     }
 
-    async fn tweet_by_id(id: u64) -> Result<twitter_v2::Tweet, String> {
-        let secrets = secrets::extract()?;
-
-        let auth = authorization::BearerToken::new(secrets.twitter.bearer_token);
-
-        let tweet = match TwitterApi::new(auth).get_tweet(id).send().await {
-            Ok(tweet) => tweet,
-            Err(err) => return Err(err.to_string()),
-        };
-
-        let tweet = match tweet.into_data() {
-            Some(tweet) => tweet,
-            None => return Err(String::from("Tweet not found.")),
-        };
-
-        Ok(tweet)
-    }
-
     pub async fn user_tweets(
         user: &twitter_v2::User,
         max_results: usize,
@@ -182,14 +164,6 @@ mod twitter {
             let user = user_by_username(username).await.unwrap();
             // See <https://web.archive.org/web/20220611133626/https://twitter.com/jack/status/49923786786615296>.
             assert_eq!(user.id, 12);
-        }
-
-        #[tokio::test]
-        async fn test_tweet_by_id() {
-            let id = 1304102743196356610;
-
-            let tweet = tweet_by_id(id).await.unwrap();
-            assert_eq!(tweet.text, "The new #TwitterAPI includes some improvements to the Tweet payload. You’re probably wondering — what are the main differences? 🧐\n\nIn this video, @SuhemParack compares the v1.1 Tweet payload with what you’ll find using our v2 endpoints. https://t.co/CjneyMpgCq");
         }
     }
 }
