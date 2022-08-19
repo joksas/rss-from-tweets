@@ -36,7 +36,11 @@ pub fn error_page(code: u16, message: &str) -> Markup {
     }
 }
 
-pub fn user_tweets(username: &str, tweets: Vec<twitter_v2::Tweet>) -> Markup {
+pub fn user_tweets(
+    username: &str,
+    tweets: Vec<twitter_v2::Tweet>,
+    media_objects: Vec<twitter_v2::Media>,
+) -> Markup {
     let title = format!("Tweets of @{}", username);
     html! {
         (header(&title))
@@ -46,7 +50,7 @@ pub fn user_tweets(username: &str, tweets: Vec<twitter_v2::Tweet>) -> Markup {
                     a href={(format!("https://twitter.com/{}", username))} { "@"(username) }
                 }
                 @for (tweet_idx, tweet) in tweets.iter().enumerate() {
-                    (tweet_to_html(&tweet))
+                    (tweet_to_html(&tweet, &media_objects))
 
                         @if tweet_idx < tweets.len() - 1 {
                             hr;
@@ -70,9 +74,15 @@ struct Link {
     end: usize,
 }
 
+struct Image {
+    url: String,
+    width: usize,
+    height: usize,
+}
+
 type TweetText = Vec<TweetTextPart>;
 
-fn tweet_to_html(tweet: &twitter_v2::Tweet) -> Markup {
+fn tweet_to_html(tweet: &twitter_v2::Tweet, media_objects: &[twitter_v2::Media]) -> Markup {
     let chars: Vec<char> = tweet.text.chars().collect();
 
     let mut urls: Vec<Link> = Vec::new();
@@ -106,6 +116,46 @@ fn tweet_to_html(tweet: &twitter_v2::Tweet) -> Markup {
                     end: user_mention.end,
                 });
             }
+        }
+    }
+
+    let mut media_keys = Vec::new();
+    if let Some(attachments) = &tweet.attachments {
+        if let Some(attachment_media_keys) = &attachments.media_keys {
+            media_keys = attachment_media_keys.clone();
+        }
+    }
+    let mut images = Vec::new();
+    for media_object in media_objects {
+        if media_keys.contains(&media_object.media_key)
+            && media_object.kind == twitter_v2::data::MediaType::Photo
+        {
+            let url: String;
+            let width: usize;
+            let height: usize;
+            if let Some(media_url) = &media_object.url {
+                url = media_url.to_string();
+            } else {
+                log::warn!("No url for media object");
+                continue;
+            }
+            if let Some(media_width) = &media_object.width {
+                width = *media_width;
+            } else {
+                log::warn!("No width for media object");
+                continue;
+            }
+            if let Some(media_height) = &media_object.height {
+                height = *media_height
+            } else {
+                log::warn!("No height for media object");
+                continue;
+            }
+            images.push(Image {
+                url: url,
+                width: width,
+                height: height,
+            });
         }
     }
 
@@ -166,6 +216,9 @@ fn tweet_to_html(tweet: &twitter_v2::Tweet) -> Markup {
                         br;
                     }
                 }
+            }
+            @for image in images {
+                img src=(image.url) width=(image.width) height=(image.height);
             }
         }
     }

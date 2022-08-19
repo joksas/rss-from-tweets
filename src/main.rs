@@ -53,7 +53,7 @@ mod handlers {
         };
 
         let tweets = twitter::user_tweets(&user, 5).await;
-        let tweets = match tweets {
+        let (data, expansions) = match tweets {
             Ok(tweets) => tweets,
             Err(e) => {
                 log::error!("Error retrieving tweets: {}", e);
@@ -61,7 +61,7 @@ mod handlers {
             }
         };
 
-        let output = super::tmpl::user_tweets(&username, tweets).into_string();
+        let output = super::tmpl::user_tweets(&username, data, expansions).into_string();
 
         HttpResponse::Ok().content_type("text/html").body(output)
     }
@@ -102,6 +102,8 @@ mod handlers {
 
 mod twitter {
     use super::secrets;
+    use twitter_v2::query::MediaField;
+    use twitter_v2::query::TweetExpansion;
     use twitter_v2::query::TweetField;
     use twitter_v2::{authorization, TwitterApi};
 
@@ -130,14 +132,22 @@ mod twitter {
     pub async fn user_tweets(
         user: &twitter_v2::User,
         max_results: usize,
-    ) -> Result<Vec<twitter_v2::Tweet>, String> {
+    ) -> Result<(Vec<twitter_v2::Tweet>, Vec<twitter_v2::Media>), String> {
         let secrets = secrets::extract()?;
 
         let auth = authorization::BearerToken::new(secrets.twitter.bearer_token);
 
         let tweets = match TwitterApi::new(auth)
             .get_user_tweets(user.id)
-            .tweet_fields([TweetField::Entities])
+            .tweet_fields([TweetField::Entities, TweetField::Attachments])
+            .media_fields([
+                MediaField::MediaKey,
+                MediaField::Url,
+                MediaField::Type,
+                MediaField::Width,
+                MediaField::Height,
+            ])
+            .expansions([TweetExpansion::AttachmentsMediaKeys])
             .max_results(max_results)
             .send()
             .await
@@ -145,12 +155,20 @@ mod twitter {
             Ok(tweets) => tweets,
             Err(err) => return Err(err.to_string()),
         };
-        let tweets = match tweets.into_data() {
-            Some(tweets) => tweets,
+        let tweets_copy = tweets.clone();
+        let tweets_data = match tweets.into_data() {
+            Some(data) => data,
             None => return Err(String::from("Tweets not found.")),
         };
+        let media_objects = match tweets_copy.into_includes() {
+            Some(includes) => match includes.media {
+                Some(media_objects) => media_objects,
+                None => Vec::new(),
+            },
+            None => Vec::new(),
+        };
 
-        Ok(tweets)
+        Ok((tweets_data, media_objects))
     }
 
     #[cfg(test)]
