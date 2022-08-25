@@ -14,4 +14,8 @@
   h1 {
     @apply text-xl mt-2 mb-7 text-center;
   }
+
+  blockquote {
+    @apply rounded-lg p-2 border border-gray-500;
+  }
 }

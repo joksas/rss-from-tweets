@@ -1,7 +1,8 @@
 {
   "scripts": {
     "tailwind:build": "tailwindcss -i ./src/css/input.css -o ./assets/style.css --minify",
-    "server": "npm run tailwind:build && cargo run",
+    "tailwind:watch": "tailwindcss -i ./src/css/input.css -o ./assets/style.css --watch",
+    "server": "npm run tailwind:watch & cargo run",
     "build": "npm run tailwind:build && cargo build"
   },
   "devDependencies": {

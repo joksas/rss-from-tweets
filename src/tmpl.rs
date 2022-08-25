@@ -39,6 +39,7 @@ pub fn error_page(code: u16, message: &str) -> Markup {
 pub fn user_tweets(
     username: &str,
     tweets: Vec<twitter_v2::Tweet>,
+    referenced_tweets: Vec<twitter_v2::Tweet>,
     media_objects: Vec<twitter_v2::Media>,
 ) -> Markup {
     let title = format!("Tweets of @{}", username);
@@ -50,7 +51,7 @@ pub fn user_tweets(
                     a href={(format!("https://twitter.com/{}", username))} { "@"(username) }
                 }
                 @for (tweet_idx, tweet) in tweets.iter().enumerate() {
-                    (tweet_to_html(&tweet, &media_objects))
+                    (tweet_to_html(&tweet, &referenced_tweets, &media_objects))
 
                         @if tweet_idx < tweets.len() - 1 {
                             hr;
@@ -82,7 +83,11 @@ struct Image {
 
 type TweetText = Vec<TweetTextPart>;
 
-fn tweet_to_html(tweet: &twitter_v2::Tweet, media_objects: &[twitter_v2::Media]) -> Markup {
+fn tweet_to_html(
+    tweet: &twitter_v2::Tweet,
+    referenced_tweets: &[twitter_v2::Tweet],
+    media_objects: &[twitter_v2::Media],
+) -> Markup {
     let chars: Vec<char> = tweet.text.chars().collect();
 
     let mut urls: Vec<Link> = Vec::new();
@@ -200,7 +205,7 @@ fn tweet_to_html(tweet: &twitter_v2::Tweet, media_objects: &[twitter_v2::Media])
         }
     }
 
-    html! {
+    let mut output = html! {
         p {
             @for part in tweet_text {
                 @match part {
@@ -221,5 +226,24 @@ fn tweet_to_html(tweet: &twitter_v2::Tweet, media_objects: &[twitter_v2::Media])
                 img src=(image.url) width=(image.width) height=(image.height);
             }
         }
+    };
+
+    if let Some(tweet_referenced_tweets) = &tweet.referenced_tweets {
+        for referenced_tweet in tweet_referenced_tweets {
+            if referenced_tweet.kind == twitter_v2::data::ReferencedTweetKind::Quoted {
+                for ref_tweet in referenced_tweets {
+                    if ref_tweet.id == referenced_tweet.id {
+                        output = html! {
+                            (output)
+                                blockquote {
+                                    (tweet_to_html(ref_tweet, &Vec::new(), media_objects))
+                                }
+                        };
+                    }
+                }
+            }
+        }
     }
+
+    output
 }
