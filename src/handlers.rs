@@ -31,7 +31,7 @@ async fn user_tweets(username: web::Path<String>) -> HttpResponse {
         }
     };
 
-    let tweets = super::twitter::user_tweets(&user, 5).await;
+    let tweets = super::twitter::tweets_by_user(&user, 5).await;
     let (tweet_data, referenced_tweet_data, expansions) = match tweets {
         Ok(tweets) => tweets,
         Err(e) => {

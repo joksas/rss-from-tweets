@@ -27,7 +27,7 @@ pub async fn user_by_username(username: &str) -> Result<twitter_v2::User, String
     Ok(user)
 }
 
-pub async fn user_tweets(
+pub async fn tweets_by_user(
     user: &twitter_v2::User,
     max_results: usize,
 ) -> Result<
@@ -80,14 +80,13 @@ pub async fn user_tweets(
     let mut referenced_tweets: Vec<twitter_v2::Tweet> = Vec::new();
     for tweet in tweets.clone() {
         if let Some(tweet_referended_tweets) = tweet.referenced_tweets {
-            for referenced_tweet in tweet_referended_tweets {
-                match get_tweet(referenced_tweet.id).await {
-                    Ok((new_tweet, new_media_objects)) => {
-                        referenced_tweets.push(new_tweet);
-                        media_objects.extend(new_media_objects);
-                    }
-                    Err(e) => return Err(e),
+            let referenced_tweet_ids = tweet_referended_tweets.iter().map(|x| x.id).collect();
+            match tweets_by_ids(referenced_tweet_ids).await {
+                Ok((ref_tweets, ref_media)) => {
+                    referenced_tweets.extend(ref_tweets);
+                    media_objects.extend(ref_media);
                 }
+                Err(e) => return Err(e),
             }
         }
     }
@@ -95,15 +94,15 @@ pub async fn user_tweets(
     Ok((tweets, referenced_tweets, media_objects))
 }
 
-pub async fn get_tweet(
-    id: twitter_v2::id::NumericId,
-) -> Result<(twitter_v2::Tweet, Vec<twitter_v2::Media>), String> {
+pub async fn tweets_by_ids(
+    ids: Vec<twitter_v2::id::NumericId>,
+) -> Result<(Vec<twitter_v2::Tweet>, Vec<twitter_v2::Media>), String> {
     let secrets = secrets::extract()?;
 
     let auth = authorization::BearerToken::new(secrets.twitter.bearer_token);
 
     let tweet_data = match TwitterApi::new(auth)
-        .get_tweet(id)
+        .get_tweets(ids)
         .tweet_fields([TweetField::Entities, TweetField::Attachments])
         .media_fields([
             MediaField::MediaKey,
@@ -120,7 +119,7 @@ pub async fn get_tweet(
         Err(err) => return Err(err.to_string()),
     };
 
-    let tweet = match tweet_data.clone().into_data() {
+    let tweets = match tweet_data.clone().into_data() {
         Some(data) => data,
         None => return Err(String::from("Tweet not found.")),
     };
@@ -133,7 +132,7 @@ pub async fn get_tweet(
         None => Vec::new(),
     };
 
-    Ok((tweet, media_objects))
+    Ok((tweets, media_objects))
 }
 
 #[cfg(test)]
