@@ -143,10 +143,9 @@ mod twitter {
         String,
     > {
         let secrets = secrets::extract()?;
-
         let auth = authorization::BearerToken::new(secrets.twitter.bearer_token);
 
-        let tweets = match TwitterApi::new(auth)
+        let tweets_data = match TwitterApi::new(auth)
             .get_user_tweets(user.id)
             .tweet_fields([
                 TweetField::Entities,
@@ -165,15 +164,16 @@ mod twitter {
             .send()
             .await
         {
-            Ok(tweets) => tweets,
+            Ok(data) => data,
             Err(err) => return Err(err.to_string()),
         };
-        let tweets_copy = tweets.clone();
-        let tweets_data = match tweets.into_data() {
+
+        let tweets = match tweets_data.clone().into_data() {
             Some(data) => data,
             None => return Err(String::from("Tweets not found.")),
         };
-        let mut media_objects = match tweets_copy.into_includes() {
+
+        let mut media_objects = match tweets_data.clone().into_includes() {
             Some(includes) => match includes.media {
                 Some(media_objects) => media_objects,
                 None => Vec::new(),
@@ -182,7 +182,7 @@ mod twitter {
         };
 
         let mut referenced_tweets: Vec<twitter_v2::Tweet> = Vec::new();
-        for tweet in tweets_data.clone() {
+        for tweet in tweets.clone() {
             if let Some(tweet_referended_tweets) = tweet.referenced_tweets {
                 for referenced_tweet in tweet_referended_tweets {
                     match get_tweet(referenced_tweet.id).await {
@@ -196,7 +196,7 @@ mod twitter {
             }
         }
 
-        Ok((tweets_data, referenced_tweets, media_objects))
+        Ok((tweets, referenced_tweets, media_objects))
     }
 
     pub async fn get_tweet(
@@ -206,7 +206,7 @@ mod twitter {
 
         let auth = authorization::BearerToken::new(secrets.twitter.bearer_token);
 
-        let tweet = match TwitterApi::new(auth)
+        let tweet_data = match TwitterApi::new(auth)
             .get_tweet(id)
             .tweet_fields([TweetField::Entities, TweetField::Attachments])
             .media_fields([
@@ -220,15 +220,16 @@ mod twitter {
             .send()
             .await
         {
-            Ok(tweet) => tweet,
+            Ok(data) => data,
             Err(err) => return Err(err.to_string()),
         };
-        let tweet_copy = tweet.clone();
-        let tweet_data = match tweet.into_data() {
+
+        let tweet = match tweet_data.clone().into_data() {
             Some(data) => data,
             None => return Err(String::from("Tweet not found.")),
         };
-        let media_objects = match tweet_copy.into_includes() {
+
+        let media_objects = match tweet_data.clone().into_includes() {
             Some(includes) => match includes.media {
                 Some(media_objects) => media_objects,
                 None => Vec::new(),
@@ -236,7 +237,7 @@ mod twitter {
             None => Vec::new(),
         };
 
-        Ok((tweet_data, media_objects))
+        Ok((tweet, media_objects))
     }
 
     #[cfg(test)]
